@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skypulse – Live Weather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1b2340; --muted:#5d6788; --card:rgba(255,255,255,.9);
+  --g1:#ff9a5a; --g2:#c850c0; --g3:#4158d0; --accent:#ff6b6b;
+  --font:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body[data-weather="sun"]{--g1:#ffb347;--g2:#ff5e7e;--g3:#7b4fd6}
+body[data-weather="part"]{--g1:#ffd36b;--g2:#4fc3f7;--g3:#5b6fe6}
+body[data-weather="cloud"]{--g1:#8fb4d9;--g2:#6c7fd8;--g3:#3b3f8f}
+body[data-weather="rain"]{--g1:#2ec4b6;--g2:#3a7bd5;--g3:#3b2a8c}
+body[data-weather="snow"]{--g1:#b8f2ff;--g2:#7fb6ff;--g3:#9b7bf0}
+body[data-weather="storm"]{--g1:#f7b733;--g2:#7b2ff7;--g3:#1f1147}
+body[data-weather="fog"]{--g1:#b8c6db;--g2:#7fa7b8;--g3:#5a6b9a}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:linear-gradient(140deg,var(--g1),var(--g2) 50%,var(--g3)) fixed;color:var(--ink);
+  font-family:var(--font);line-height:1.5;min-height:100vh;transition:background .4s}
+main{max-width:960px;margin:0 auto;padding:2rem 1.25rem 3rem}
+h1{font-size:clamp(2.25rem,7vw,3.75rem);font-weight:800;letter-spacing:-.03em;margin:0 0 1.25rem;line-height:1.05;
+  color:#fff;text-shadow:0 3px 18px rgba(0,0,0,.25)}
+form{display:flex;gap:.5rem;flex-wrap:wrap}
+input{flex:1 1 240px;font:inherit;padding:.85rem 1.1rem;border:3px solid transparent;border-radius:14px;
+  background:#fff;color:var(--ink);box-shadow:0 6px 20px rgba(0,0,0,.15)}
+input[aria-invalid="true"]{border-color:#ff4d4d}
+button{font:inherit;font-weight:700;padding:.85rem 1.6rem;border:0;border-radius:14px;color:#fff;cursor:pointer;
+  background:linear-gradient(135deg,#ff6b6b,#ffa94d);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+button:hover:not(:disabled){filter:brightness(1.08)}
+button:disabled{opacity:.6;cursor:wait}
+:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#hint{margin:.5rem 0 0;min-height:1.5rem;font-size:.9rem}
+#hint:not(:empty){display:inline-block;background:#fff;color:#c0262d;padding:.25rem .75rem;border-radius:999px;font-weight:600}
+#status{margin:1rem 0;padding:.85rem 1.1rem;border-radius:14px;display:none;font-weight:600}
+#status.loading,#status.empty{display:block;background:rgba(255,255,255,.88);color:var(--ink)}
+#status.error{display:block;background:#fff1ef;color:#b3261e;border-left:6px solid #ff4d4d}
+#current{display:none;margin-top:1rem;padding:1.75rem;color:#fff;border-radius:24px;
+  background:linear-gradient(135deg,rgba(255,255,255,.28),rgba(255,255,255,.1));
+  border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 12px 40px rgba(0,0,0,.2);grid-template-columns:auto 1fr;gap:1.5rem;align-items:center}
+#current.show{display:grid}
+#current svg{width:clamp(96px,24vw,150px);height:auto;filter:drop-shadow(0 6px 12px rgba(0,0,0,.25))}
+.place{margin:0;font-weight:600;opacity:.95}
+.temp{font-size:clamp(4rem,14vw,7.5rem);font-weight:800;letter-spacing:-.05em;line-height:.95;margin:.1rem 0;text-shadow:0 4px 20px rgba(0,0,0,.25)}
+.cond{font-size:1.5rem;font-weight:700;margin:0}
+.meta{display:flex;gap:.5rem;flex-wrap:wrap;margin:.75rem 0 0;font-size:.9rem}
+.meta span{background:rgba(255,255,255,.25);padding:.2rem .75rem;border-radius:999px}
+#forecast{display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;margin-top:1rem}
+.day{background:var(--card);border-radius:18px;padding:1rem .75rem;text-align:center;border-top:6px solid var(--c);
+  box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.day:nth-child(1){--c:#ff6b6b}.day:nth-child(2){--c:#ffa94d}.day:nth-child(3){--c:#51cf66}
+.day:nth-child(4){--c:#4dabf7}.day:nth-child(5){--c:#9775fa}
+.day h3{margin:0;font-size:1rem;color:var(--c);filter:brightness(.8)}
+.day svg{width:52px;height:52px;margin:.5rem 0 .25rem}
+.day p{margin:0;font-size:.9rem;color:var(--muted)}
+.day .hi{color:var(--ink);font-weight:800;font-size:1.35rem}
+@media (max-width:700px){
+  #forecast{grid-template-columns:repeat(2,1fr)}
+  #forecast .day:last-child{grid-column:1/-1}
+  #current{grid-template-columns:1fr;text-align:center;justify-items:center}
+  .meta{justify-content:center}
+}
+@media (prefers-reduced-motion:no-preference){
+  #current.show{animation:rise .4s ease-out}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Skypulse</h1>
+  <form id="form" novalidate>
+    <input id="city" name="city" type="search" placeholder="Search a city, e.g. Pune" autocomplete="off"
+           aria-label="City name" aria-describedby="hint" list="suggestions">
+    <datalist id="suggestions"></datalist>
+    <button id="go" type="submit">Get weather</button>
+  </form>
+  <p id="hint" role="alert"></p>
+  <div id="status" role="status" aria-live="polite"></div>
+  <section id="current" aria-label="Current weather"></section>
+  <section id="forecast" aria-label="Five-day forecast"></section>
+</main>
+
+<script>
+"use strict";
+
+/* ---- All API URLs and settings live in one place ---- */
+const API = {
+  geocode: "https://geocoding-api.open-meteo.com/v1/search",
+  forecast: "https://api.open-meteo.com/v1/forecast",
+  timeoutMs: 10000,
+  storageKey: "skypulse:lastCity",
+};
+
+/* ---- Weather codes (WMO) -> label + icon type ---- */
+const CODES = {
+  0:["Clear","sun"], 1:["Mostly clear","sun"], 2:["Partly cloudy","part"], 3:["Overcast","cloud"],
+  45:["Fog","fog"], 48:["Freezing fog","fog"],
+  51:["Light drizzle","rain"], 53:["Drizzle","rain"], 55:["Heavy drizzle","rain"],
+  56:["Freezing drizzle","rain"], 57:["Freezing drizzle","rain"],
+  61:["Light rain","rain"], 63:["Rain","rain"], 65:["Heavy rain","rain"],
+  66:["Freezing rain","rain"], 67:["Freezing rain","rain"],
+  71:["Light snow","snow"], 73:["Snow","snow"], 75:["Heavy snow","snow"], 77:["Snow grains","snow"],
+  80:["Rain showers","rain"], 81:["Rain showers","rain"], 82:["Violent showers","rain"],
+  85:["Snow showers","snow"], 86:["Snow showers","snow"],
+  95:["Thunderstorm","storm"], 96:["Thunderstorm, hail","storm"], 99:["Thunderstorm, hail","storm"],
+};
+const describe = code => CODES[code] || ["Unknown","cloud"];
+
+/* ---- Icons: static, trusted SVG strings ---- */
+const S = "#d9822b", C = "#8aa0b8", B = "#3f7fd0";
+const CLOUD = `<path d="M22 46a10 10 0 0 1 1-20 14 14 0 0 1 27 4 8 8 0 0 1-1 16z" fill="${C}"/>`;
+const ICONS = {
+  sun:`<circle cx="32" cy="32" r="11" fill="${S}"/><g stroke="${S}" stroke-width="4" stroke-linecap="round"><path d="M32 6v7M32 51v7M6 32h7M51 32h7M13.6 13.6l5 5M45.4 45.4l5 5M13.6 50.4l5-5M45.4 18.6l5-5"/></g>`,
+  part:`<circle cx="24" cy="24" r="9" fill="${S}"/><g transform="translate(2 6)">${CLOUD}</g>`,
+  cloud:CLOUD,
+  fog:`${CLOUD}<path d="M14 52h36M20 58h28" stroke="${C}" stroke-width="3" stroke-linecap="round"/>`,
+  rain:`${CLOUD}<path d="M24 52l-3 7M34 52l-3 7M44 52l-3 7" stroke="${B}" stroke-width="3.5" stroke-linecap="round"/>`,
+  snow:`${CLOUD}<g fill="#9fc3e8"><circle cx="24" cy="55" r="2.6"/><circle cx="34" cy="57" r="2.6"/><circle cx="44" cy="55" r="2.6"/></g>`,
+  storm:`${CLOUD}<path d="M35 44l-8 10h7l-3 8 11-12h-7z" fill="${S}"/>`,
+};
+const icon = type => `<svg viewBox="0 0 64 64" role="img" aria-hidden="true">${ICONS[type]}</svg>`;
+
+/* ---- DOM references ---- */
+const $ = id => document.getElementById(id);
+const form = $("form"), input = $("city"), btn = $("go"), hint = $("hint"),
+      statusEl = $("status"), current = $("current"), forecast = $("forecast"),
+      suggestions = $("suggestions");
+
+/* ---- Helpers ---- */
+class FriendlyError extends Error {}
+
+async function getJSON(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), API.timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { signal: ctrl.signal });
+  } catch {
+    throw new FriendlyError("Network problem. Check your connection and try again.");
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) {
+    throw new FriendlyError(res.status === 429
+      ? "Too many requests. Wait a moment and try again."
+      : `The weather service had a problem (error ${res.status}). Try again soon.`);
+  }
+  return res.json();
+}
+
+function validate(value) {
+  const v = value.trim();
+  if (!v) return "Enter a city name to search.";
+  if (v.length < 2) return "Type at least 2 characters.";
+  if (!/^[\p{L}\s.'’-]+$/u.test(v)) return "Use letters only, no numbers or symbols.";
+  return "";
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+function setStatus(kind, text = "") {
+  statusEl.className = kind || "";
+  statusEl.textContent = text;
+}
+
+/* ---- API calls ---- */
+async function findCity(name) {
+  const url = `${API.geocode}?name=${encodeURIComponent(name.trim())}&count=1&language=en&format=json`;
+  const data = await getJSON(url);
+  if (!data.results || !data.results.length) {
+    throw new FriendlyError(`City not found: "${name.trim()}". Check the spelling or try a nearby city.`);
+  }
+  const { name: city, latitude, longitude, country, admin1 } = data.results[0];
+  return { name: [city, admin1, country].filter(Boolean).join(", "), latitude, longitude };
+}
+
+async function getWeather(lat, lon) {
+  const url = `${API.forecast}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`
+    + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code"
+    + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+    + "&forecast_days=5&timezone=auto";
+  return getJSON(url);
+}
+
+/* ---- Rendering ---- */
+function el(tag, className, text) {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+const deg = n => `${Math.round(n)}°`;
+
+function renderCurrent(place, w) {
+  const c = w.current, u = w.current_units;
+  const [label, type] = describe(c.weather_code);
+  const iconBox = el("div");
+  iconBox.innerHTML = icon(type);
+  const info = el("div");
+  info.append(
+    el("p", "place", place),
+    el("p", "temp", deg(c.temperature_2m)),
+    el("p", "cond", label),
+  );
+  const meta = el("div", "meta");
+  meta.append(
+    el("span", "", `Feels like ${deg(c.apparent_temperature)}`),
+    el("span", "", `Humidity ${c.relative_humidity_2m}${u.relative_humidity_2m}`),
+    el("span", "", `Wind ${Math.round(c.wind_speed_10m)} ${u.wind_speed_10m}`),
+  );
+  info.append(meta);
+  current.replaceChildren(iconBox, info);
+  document.body.dataset.weather = type;
+  current.classList.add("show");
+}
+
+function renderForecast(w) {
+  const d = w.daily;
+  const cards = d.time.map((t, i) => {
+    const [label, type] = describe(d.weather_code[i]);
+    const card = el("article", "day");
+    const date = new Date(`${t}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    const ic = el("div"); ic.innerHTML = icon(type);
+    card.append(el("h3", "", date), ic, el("p", "", label),
+      el("p", "hi", deg(d.temperature_2m_max[i])), el("p", "", `Low ${deg(d.temperature_2m_min[i])}`));
+    return card;
+  });
+  forecast.replaceChildren(...cards);
+}
+
+function clearResults() {
+  delete document.body.dataset.weather;
+  current.classList.remove("show");
+  current.replaceChildren();
+  forecast.replaceChildren();
+}
+
+/* ---- Main flow ---- */
+let requestId = 0;
+async function search(name) {
+  const problem = validate(name);
+  if (problem) {
+    hint.textContent = problem;
+    input.setAttribute("aria-invalid", "true");
+    clearResults();
+    setStatus("empty", "Enter a city above to see current weather and the next five days.");
+    return;
+  }
+  hint.textContent = "";
+  input.removeAttribute("aria-invalid");
+
+  const myId = ++requestId;          // ignore stale responses
+  btn.disabled = true;
+  setStatus("loading", "Loading weather…");
+  try {
+    const place = await findCity(name);
+    const weather = await getWeather(place.latitude, place.longitude);
+    if (myId !== requestId) return;
+    renderCurrent(place.name, weather);
+    renderForecast(weather);
+    setStatus("");
+    try { localStorage.setItem(API.storageKey, name.trim()); } catch {}
+  } catch (err) {
+    if (myId !== requestId) return;
+    clearResults();
+    setStatus("error", err instanceof FriendlyError ? err.message : "Something went wrong. Please try again.");
+  } finally {
+    if (myId === requestId) btn.disabled = false;
+  }
+}
+
+form.addEventListener("submit", e => { e.preventDefault(); search(input.value); });
+
+/* Debounced live validation + suggestions (never fires on every key press) */
+const onType = debounce(async () => {
+  const v = input.value;
+  if (!v.trim()) { hint.textContent = ""; input.removeAttribute("aria-invalid"); return; }
+  const problem = validate(v);
+  hint.textContent = problem;
+  input.toggleAttribute("aria-invalid", !!problem);
+  if (problem) return;
+  try {
+    const url = `${API.geocode}?name=${encodeURIComponent(v.trim())}&count=5&language=en&format=json`;
+    const data = await getJSON(url);
+    suggestions.replaceChildren(...(data.results || []).map(r => {
+      const o = document.createElement("option");
+      o.value = r.name;
+      o.label = [r.admin1, r.country].filter(Boolean).join(", ");
+      return o;
+    }));
+  } catch { /* suggestions are optional; stay quiet */ }
+}, 500);
+input.addEventListener("input", onType);
+
+/* Restore last city, or show the empty state */
+let last = "";
+try { last = localStorage.getItem(API.storageKey) || ""; } catch {}
+if (last) { input.value = last; search(last); }
+else setStatus("empty", "Enter a city above to see current weather and the next five days.");
+</script>
+</body>
+</html>
